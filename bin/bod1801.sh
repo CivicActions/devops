@@ -33,7 +33,7 @@ $( command -v sslscan > /dev/null ) || minversion
 
 # Confirm that sslscan is at least MINV (1.11).
 version_gt() { test "$(printf '%s\n' "$@" | sort -V  | head -n 1)" != "$1"; }
-VERS="$(sslscan --version | egrep '\s\s[0-9]\.' | sed 's/\s*\([0-9][^- ]*\).*/\1/')"
+VERS="$(sslscan --version | egrep 'static|version' | sed 's/.*\s\([0-9][0-9\.]*\).*$/\1/')"
 version_gt $MINV $VERS && minversion
 
 hsts() {
