@@ -13,9 +13,9 @@
 
 usage() {
   BASE=`basename $0`
-  echo "Usage: $BASE SITENAME"
+  echo "Usage: $BASE SITENAME [BASIC:AUTH@] [PATH]"
   echo "       If configured, displays: 'HSTS SubDomains preload SITENAME'"
-  echo "       Followed by weak ciphers (if present)"
+  echo "       Followed by weak protocols (TLSv1.0) and ciphers (DES, RC4)."
   echo "  Try: $BASE civicactions.com"
   exit 1
 }
@@ -38,10 +38,12 @@ version_gt $MINV $VERS && minversion
 
 hsts() {
   SITE="$1"
+  AUTH="$2"
+  POST="$3"
   HSTS="----"
   INCL="----------"
   LOAD="-------"
-  CURL=$( curl -s -v "https://${SITE}" 2>&1 | grep Strict-Transport )
+  CURL=$( curl -s -v "https://${AUTH}${SITE}/${POST}" 2>&1 | grep Strict-Transport )
   if [[ ! -z "$CURL" ]]; then
     HSTS="HSTS"
     $( echo $CURL | grep "preload" > /dev/null ) && LOAD="preload"
