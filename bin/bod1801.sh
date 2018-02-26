@@ -11,15 +11,16 @@
 # If HSTS, check if "includeSubDomains" and "preload" is included.
 # Also check if weak ciphers are in use and if so, display them.
 
+BASE=`basename $0`
+
 usage() {
-  BASE=`basename $0`
   echo "Usage: $BASE SITENAME [BASIC:AUTH@] [PATH]"
   echo "       If configured, displays: 'HSTS SubDomains preload SITENAME'"
   echo "       Followed by weak protocols (TLSv1.0) and ciphers (DES, RC4)."
   echo "  Try: $BASE civicactions.com"
+  echo "   Or: $BASE badssl.com"
   exit 1
 }
-
 [[ $# -eq 0 ]] && usage
 
 MINV="1.11"
