@@ -44,11 +44,11 @@ hsts() {
   HSTS="----"
   INCL="----------"
   LOAD="-------"
-  CURL=$( curl -s -v "https://${AUTH}${SITE}/${POST}" 2>&1 | grep Strict-Transport )
+  CURL=$( curl -s -v "https://${AUTH}${SITE}/${POST}" 2>&1 | grep -i strict-transport )
   if [[ ! -z "$CURL" ]]; then
     HSTS="HSTS"
-    $( echo $CURL | grep "preload" > /dev/null ) && LOAD="preload"
-    $( echo $CURL | grep -i "includeSubDomains" > /dev/null ) && INCL="SubDomains"
+    $( echo $CURL | grep -i "preload" > /dev/null ) && LOAD="preload"
+    $( echo $CURL | grep -i "includesubdomains" > /dev/null ) && INCL="SubDomains"
   fi
   CIPHER="$(sslscan $SITE | egrep '(SSLv|TLSv1.0|DES|RC4)')"
   if [[ -z "$CIPHER" ]]; then
