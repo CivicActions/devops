@@ -16,7 +16,8 @@ BASE=`basename $0`
 usage() {
   echo "Usage: $BASE SITENAME [BASIC:AUTH@] [PATH]"
   echo "       If configured, displays: 'HSTS SubDomains preload SITENAME'"
-  echo "       Followed by weak protocols (TLSv1.0) and ciphers (DES, RC4)."
+  echo "       Followed by weak protocols (TLSv1.0, TLSv1.1) and ciphers (DES, RC4)."
+  echo "       For more complete SSL information, run 'sslscan SITENAME'"
   echo "  Try: $BASE civicactions.com"
   echo "   Or: $BASE badssl.com"
   exit 1
@@ -44,18 +45,31 @@ hsts() {
   HSTS="----"
   INCL="----------"
   LOAD="-------"
+  # Check for HTTPS Strict Transport Security (HSTS).
   CURL=$( curl -s -v "https://${AUTH}${SITE}/${POST}" 2>&1 | grep -i strict-transport )
   if [[ ! -z "$CURL" ]]; then
     HSTS="HSTS"
     $( echo $CURL | grep -i "preload" > /dev/null ) && LOAD="preload"
     $( echo $CURL | grep -i "includesubdomains" > /dev/null ) && INCL="SubDomains"
   fi
-  CIPHER="$(sslscan $SITE | egrep '(SSLv|TLSv1.0|DES|RC4)')"
-  if [[ -z "$CIPHER" ]]; then
-    echo "$HSTS $INCL $LOAD $SITE -- uses strong ciphers!"
+  # Check for weak protocols and ciphers.
+  SSLSCAN="$(sslscan $SITE | egrep '(SSLv|TLSv1.|DES|RC4)')"
+  CIPHERS=''
+  TLSV123=''
+  $(echo $SSLSCAN | grep -q 'SSLv')    && CIPHERS="$CIPHERS SSL"
+  $(echo $SSLSCAN | grep -q 'TLSv1.0') && CIPHERS="$CIPHERS TLSv1.0"
+  $(echo $SSLSCAN | grep -q 'TLSv1.1') && CIPHERS="$CIPHERS TLSv1.1"
+  $(echo $SSLSCAN | grep -q 'DES')     && CIPHERS="$CIPHERS DES"
+  $(echo $SSLSCAN | grep -q 'RC4')     && CIPHERS="$CIPHERS RC4"
+  $(echo $SSLSCAN | grep -q 'TLSv1.2') && TLSv123="$TLSv123 TLSv1.2"
+  $(echo $SSLSCAN | grep -q 'TLSv1.3') && TLSv123="$TLSv123 TLSv1.3"
+  if [[ -z "$CIPHERS" ]]; then
+    echo "$HSTS $INCL $LOAD $SITE -- strong ciphers with:$TLSv123"
+  elif [[ -z "$TLSv123" ]]; then
+    echo "$HSTS $INCL $LOAD $SITE -- weak ciphers:$CIPHERS"
   else
-    echo "$HSTS $INCL $LOAD $SITE -- weak ciphers listed below:"
-    echo "$CIPHER" | sed 's/^/     /'
+    echo "$HSTS $INCL $LOAD $SITE -- weak ciphers:$CIPHERS (has:$TLSv123)"
+#   echo "$SSLSCAN" | sed 's/^/     /'
   fi
 }
 
