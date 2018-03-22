@@ -45,8 +45,14 @@ hsts() {
   HSTS="----"
   INCL="----------"
   LOAD="-------"
+  TIME=5
   # Check for HTTPS Strict Transport Security (HSTS).
-  CURL=$( curl -s -v "https://${AUTH}${SITE}/${POST}" 2>&1 | grep -i strict-transport )
+  CURL=$( curl --connect-timeout $TIME -s -v "https://${AUTH}${SITE}/${POST}" 2>&1 )
+  if [[ $? == 28 ]]; then
+    echo "$HSTS $INCL $LOAD $SITE -- Site timeout after $TIME seconds"
+    return
+  fi
+  CURL=$( echo $CURL | grep -i strict-transport )
   if [[ ! -z "$CURL" ]]; then
     HSTS="HSTS"
     $( echo $CURL | grep -i "preload" > /dev/null ) && LOAD="preload"
@@ -56,25 +62,21 @@ hsts() {
   SSLSCAN="$(sslscan $SITE | egrep '(SSLv|TLSv1.|DES|RC4)')"
   PROTOS=''
   CIPHERS=''
-  TLSV123=''
+  TLSv12='-------'
+  TLSv13=''
   $(echo $SSLSCAN | grep -q 'SSLv')    && PROTOS="$PROTOS SSL"
   $(echo $SSLSCAN | grep -q 'TLSv1.0') && PROTOS="$PROTOS TLSv1.0"
   $(echo $SSLSCAN | grep -q 'TLSv1.1') && PROTOS="$PROTOS TLSv1.1"
   $(echo $SSLSCAN | grep -q 'DES')     && CIPHERS="$CIPHERS DES"
   $(echo $SSLSCAN | grep -q 'RC4')     && CIPHERS="$CIPHERS RC4"
-  $(echo $SSLSCAN | grep -q 'TLSv1.2') && TLSv123="$TLSv123 TLSv1.2"
-  $(echo $SSLSCAN | grep -q 'TLSv1.3') && TLSv123="$TLSv123 TLSv1.3"
+  $(echo $SSLSCAN | grep -q 'TLSv1.2') && TLSv12="TLSv1.2"
+  $(echo $SSLSCAN | grep -q 'TLSv1.3') && TLSv13="(has TLSv1.3)"
   WEAK=''
-  [[ -z "$PROTOS" ]]  || WEAK="weak protocols:$PROTOS"
-  [[ -z "$CIPHERS" ]] || WEAK="$WEAK; weak ciphers:$CIPHERS"
-  if [[ -z "$WEAK" ]]; then
-    echo "$HSTS $INCL $LOAD $SITE -- strong ciphers with:$TLSv123"
-  elif [[ -z "$TLSv123" ]]; then
-    echo "$HSTS $INCL $LOAD $SITE -- $WEAK"
-  else
-    echo "$HSTS $INCL $LOAD $SITE -- $WEAK (has:$TLSv123)"
-#   echo "$SSLSCAN" | sed 's/^/     /'
-  fi
+  [[ -z "$PROTOS" ]]  || WEAK="weak protocol:$PROTOS"
+  [[ -z "$CIPHERS" ]] || WEAK="$WEAK; weak cipher:$CIPHERS"
+  [[ -z "$WEAK" ]]    || WEAK="-- $WEAK"
+  [[ -z "$TLSv13" ]]  || WEAK="$WEAK $TLSv13"
+  echo "$HSTS $INCL $LOAD $TLSv12 $SITE ${WEAK}"
 }
 
 hsts "$1"
