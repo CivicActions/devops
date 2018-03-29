@@ -1,0 +1,17 @@
+- src: dochang.account
+- src: CivicActions.ec2-800-53
+- src: CivicActions.ec2-800-53-remediate
+- src: geerlingguy.repo-epel
+- src: geerlingguy.repo-remi
+- src: geerlingguy.apache
+- src: geerlingguy.java
+- src: geerlingguy.solr
+- src: geerlingguy.mysql
+- src: geerlingguy.php
+- src: geerlingguy.php-mysql
+- src: geerlingguy.composer
+- src: geerlingguy.git
+- src: geerlingguy.certbot
+- src: geerlingguy.docker
+- src: geerlingguy.filebeat
+- src: HanXHX.lvm

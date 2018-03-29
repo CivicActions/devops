@@ -1,0 +1,48 @@
+#- name: Create solr download directory
+#  become: true
+#  file: 
+#    path: /opt/solr/
+#    state: directory
+ 
+- name: Install Solr
+  become: true
+  import_role:
+    name: geerlingguy.solr
+  vars:
+    solr_version: "{{ solr.solr_version }}"
+    solr_cores: "{{ solr.solr_cores }}"
+
+   
+- name: Download solr drupal module
+  become: true
+  unarchive: 
+    src: "{{ solr.solr_drupal_api_url }}"
+    dest: /opt/solr
+    remote_src: yes
+    mode: 0775
+
+- name: create directories for solr
+  become: true
+  file:
+    path: /var/solr/data/{{ ansible_hostname }}/data/
+    state: directory
+    owner: solr
+    group: solr
+
+- name: Move correct version of solr module to correct location and rename
+  become: true
+  synchronize: 
+    src: /opt/solr/search_api_solr/solr-conf/5.x/
+    dest: /var/solr/data/{{ ansible_hostname }}/conf/
+  delegate_to: "{{ inventory_hostname }}"
+
+- name: Set solr config file mode for sites
+  become: true
+  file:
+    path: "/var/solr/data/{{ ansible_hostname }}/conf"
+    state: directory
+    owner: solr
+    group: solr
+    recurse: yes
+
+

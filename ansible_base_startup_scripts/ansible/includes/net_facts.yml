@@ -1,0 +1,23 @@
+- debug:
+    var: envgroup
+- name: Get VPC facts
+  ec2_vpc_net_facts:
+    filters:
+      "tag:Name": "{{ envgroup }}_vpc"
+  register: vpcs
+- name: Get subnet facts
+  ec2_vpc_subnet_facts:
+    filters:
+      vpc-id: "{{ vpcs.vpcs.0.id }}"
+      "tag:Name": "{{ envgroup }}_subnet"
+  register: subnet
+- set_fact:
+    vpc_subnet_id: "{{ subnet.subnets.0.id }}"
+- name: Get web security group
+  ec2_group_facts:
+    filters:
+      vpc-id: "{{ vpcs.vpcs.0.id }}"
+      "tag:Name": "{{ envgroup }}_ssh_whitelist"
+  register: secgroup
+- set_fact:
+    group_id: "{{ secgroup.security_groups.0.group_id }}"

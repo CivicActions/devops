@@ -1,0 +1,27 @@
+- name: Deploy VPCs
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+  - name: Production VPC
+    include: includes/create_vpc.yml
+    vars:
+      env: production
+      cidr: 192.168.0.0/18
+      subnet:
+        cidr: 192.168.0.0/20
+        az: us-east-1c
+      subnet_alt1:
+        cidr: 192.168.16.0/20
+        az: us-east-1a
+  - name: Development VPC
+    include: includes/create_vpc.yml
+    vars:
+      env: development
+      cidr: 192.168.64.0/18
+      subnet:
+        cidr: 192.168.64.0/20
+        az: us-east-1c
+      subnet_alt1:
+        cidr: 192.168.80.0/20
+        az: us-east-1a

@@ -1,0 +1,69 @@
+- name: Set website specific variables for roles.
+  set_fact:
+    vhosts: "{{vhosts|default([]) + [{'filename': 'vhosts.conf', 'servername': item.value.servername, 'documentroot': '/var/www/html/' + item.value.site}] }}"
+    vhosts_ssl: "{{vhosts_ssl|default([]) + [{'filename': 'vhosts.conf', 'servername': item.value.servername, 'documentroot': '/var/www/html/' + item.value.site, 'certificate_file': '/etc/letsencrypt/live/' + item.value.servername + '/fullchain.pem', 'certificate_key_file': '/etc/letsencrypt/live/' + item.value.servername + '/privkey.pem'}] }}"
+  with_dict: "{{ websites }}"
+
+- name: Attach security groups
+  include: includes/attach_security_group.yml
+  vars:
+    security_groups:
+      - "{{ env }}_web"
+      - "{{ env }}_ssh_whitelist"
+
+# Cloudflare
+- name: Set DNS record at CloudFlare
+  cloudflare_dns:
+    zone: "{{ item.value.dns_zone }}"
+    record: "{{ item.value.dns_record }}"
+    type: A
+    value: "{{ public_ip }}"
+    account_email: "{{ cloudflare.account_email }}"
+    account_api_token: "{{ cloudflare.api_key }}"
+  when: item.value.dns_record is defined
+  with_dict: "{{ websites }}"
+
+# Let's Encrypt
+- name: EPEL repo for Let's Encrypt
+  become: true
+  import_role:
+    name: geerlingguy.repo-epel
+- name: Set domains for certbot
+  set_fact:
+    cert_domains: "{{ cert_domains|default([]) | union([ item.value.servername ]) }}"
+  with_dict: "{{ websites }}"
+- name: Let's Encrypt certbot
+  become: true
+  import_role:
+    name: geerlingguy.certbot
+  vars:
+    certbot_auto_renew: true
+    certbot_auto_renew_user: "{{ ansible_user }}"
+    certbot_auto_renew_hour: 3
+    certbot_auto_renew_minute: 30
+    certbot_admin_email: "{{ letsencrypt_email }}"
+    certbot_create_if_missing: yes
+    certbot_create_standalone_stop_services: []
+    certbot_certs:
+      - domains: "{{ cert_domains }}"
+
+# Apache
+- name: Create docroot for each site
+  become: true
+  file:
+    path: "/var/www/html/{{ item.value.site }}"
+    state: directory
+    mode: 0755
+    owner: webdev
+    group: webdev
+    setype: httpd_sys_content_t
+  with_dict: "{{ websites }}"
+- name: Run apache
+  become: true
+  import_role:
+    name: geerlingguy.apache
+  vars:
+    apache_create_vhosts: true
+    apache_vhosts: '{{ vhosts }}' # gets info from pretask port 80 variables
+    apache_vhosts_ssl: '{{ vhosts_ssl }}' # gets info from pretask port 443 variables
+

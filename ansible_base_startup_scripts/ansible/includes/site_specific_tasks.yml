@@ -1,0 +1,29 @@
+- name: Manage site source code
+  environment:
+    # Workaround for noexec /tmp https://github.com/ansible/ansible/issues/30064#issuecomment-328882562
+    TEMP: "/var/tmp"
+  git:
+    repo: "{{ item.value.git  }}"
+    dest: "/var/www/html/{{ item.value.site }}"
+    force: true
+    update: true
+    accept_hostkey: true
+    version: master
+- name: Configure Drupal settings.local.php
+  template:
+    src: templates/settings.local.php.j2
+    dest: "/var/www/html/{{ item.value.site }}/sites/default/settings.local.php"
+- name: Create Site databases
+  mysql_db:
+    name: "{{ item.value.site }}"
+    state: present
+- name: Create Site specific DB user
+  mysql_user:
+    name: "{{ item.value.site }}"
+    login_host: "{{ rds_server.instance.endpoint }}"
+    login_user: "mysql_admin"
+    login_password: "{{ rds.password }}"
+    host: "%"
+    password: "{{ item.value.drupal_db_password }}"
+    priv: "{{ item.value.site }}.*:SELECT,INSERT,UPDATE,DELETE,CREATE,DROP,INDEX,ALTER,CREATE TEMPORARY TABLES"
+  tags: ['slow']

@@ -1,0 +1,26 @@
+---
+# !! This is only an example. It fails when attempting the site.yml playbook: !!
+
+#TASK [HanXHX.lvm : YUM | Install lvm] **********************************************************************************************************************
+#failed: [audit] (item=[u'system-storage-manager', u'sg3_utils', u'lvm2']) => {"changed": false, "item": ["system-storage-manager", "sg3_utils", "lvm2"], "msg": "No package matching 'system-storage-manager' found available, installed or updated", "rc": 126, "results": ["No package matching 'system-storage-manager' found available, installed or updated"]}
+
+# Variables used only for deployment
+# AMI from https://wiki.centos.org/Cloud/AWS#head-78d1e3a4e6ba5c5a3847750d88266916ffe69648
+image: ami-e3fdd999  # Centos-6 us-east-1
+ami_user: "centos"
+instance_type: t2.micro
+filesystem: xfs
+# Size in GB for LVM partitions:
+root: 8
+home: 1
+var: 2
+varlog: 1
+varlogaudit: 1
+tmp: 1
+free: 8
+private_ip: 
+# Variables used only for AWS configuration
+public_ip:
+# Post deployment options
+harden: 1
+

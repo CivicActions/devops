@@ -1,0 +1,26 @@
+
+- name: Install packages for EZProxy
+  yum:
+    name: 'glibc.i686'
+    state: latest
+- name: Create directory for EZProxy
+  file: path=/usr/local/ezproxy state=directory mode=0755
+- name: Create directory for EZProxy Log file
+  file: path=/var/log/httpd state=directory mode=0755
+
+- name: checkout ezproxy git repo
+  # We check out the repo locally so that we don't have to bother with a deploy key on the server
+  delegate_to: localhost
+  git:
+    repo: ssh://git@git.civicactions.net:940/dsca/ezproxy.git
+    dest: /tmp/hello
+    archive: /opt/ansible/files/ezproxy-git.tgz
+- name: Extract ezproxy into directory on server
+  unarchive: src=files/ezproxy-git.tgz dest=/usr/local/ezproxy
+- name: Cleanup ezproxy archive file
+  local_action: file path=files/ezproxy-git.tgz state=absent
+
+- name: Copy the systemd service file into place
+  copy: src=files/ezproxy/ezproxy.service dest=/etc/systemd/system/ezproxy.service mode=0755 setype=systemd_unit_file_t
+- name: Start ezproxy and set it to start on boot
+  systemd: name=ezproxy state=started enabled=yes daemon_reload=yes

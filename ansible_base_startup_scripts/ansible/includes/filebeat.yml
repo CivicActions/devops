@@ -1,0 +1,4 @@
+- name: Install Filebeat
+  become: true
+  import_role:
+    name: geerlingguy.filebeat

@@ -1,0 +1,139 @@
+---
+- name: Deploy and configure
+  hosts: production,development
+  become: true
+  gather_facts: false
+  tags: ['slow']
+  pre_tasks:
+  - name: Get VPC and Networking facts
+    connection: local
+    import_tasks: includes/net_facts.yml
+    vars:
+      envgroup: "{{ env }}"
+  - name: Check if username is active
+    local_action: shell ssh -o StrictHostKeyChecking=no -o KbdInteractiveAuthentication=no -o PreferredAuthentications=gssapi-with-mic,gssapi-keyex,hostbased,publickey -o PasswordAuthentication=no -o ConnectTimeout=10 {{ ami_user }}@{{ public_ip }} "echo success"
+    ignore_errors: true
+    register: ec2user
+  - name: Set host username if it is active
+    add_host:
+      hostname: "{{ item }}"
+      ansible_user: "{{ ami_user }}"
+    when: hostvars[item]['ec2user']['stdout'] == "success"
+    with_items: "{{ ansible_play_hosts }}"
+  roles:
+  - role: CivicActions.ec2-800-53
+    key_name: "{{ lookup('env', 'AWS_SSH_KEY_ID') }}"
+    tenancy: "default"
+    ansible_user: "{{ ami_user }}"
+  tasks:
+  - name: Refresh inventory
+    meta: refresh_inventory
+
+- name: Configure AWS and ensure everything is correctly tagged
+  hosts: production,development
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Enable termination protection
+      ec2:
+        instance_ids: "{{ [ec2_id] }}"
+        termination_protection: yes
+        state: running
+      delegate_to: localhost
+    - name: Fetch volume IDs
+      ec2_vol_facts:
+        filters:
+          attachment.status: attached
+          attachment.instance-id: "{{ ec2_id }}"
+      register: volumes
+      delegate_to: localhost
+    - name: Tag the volumes
+      ec2_tag:
+        resource: "{{ item.id }}"
+        tags:
+          Name: "{{ inventory_hostname }} {{ item.attachment_set.device }}"
+          Environment: "{{ env }}"
+      with_items: "{{ volumes.volumes }}"
+      delegate_to: localhost
+    - name: Fetch primary network interface ID
+      ec2_eni_facts:
+        filters:
+          attachment.instance-id: "{{ ec2_id }}"
+          attachment.device-index: "0"
+      register: interface
+      delegate_to: localhost
+    - name: Tag the interface
+      ec2_tag:
+        resource: "{{ interface.network_interfaces[0].network_interface_id }}"
+        tags:
+          Name: "{{ inventory_hostname }}_primary_interface"
+          Environment: "{{ env }}"
+      # Check interface is defined so we don't break in check mode.
+      when: interface.network_interfaces[0] is defined
+      delegate_to: localhost
+    - name: Build list of existing private IPs
+      set_fact:
+        existing_private_ips: "{{ existing_private_ips|default([]) + [item.private_ip_address] }}"
+      with_items: "{{ interface.network_interfaces[0].private_ip_addresses }}"
+      delegate_to: localhost
+    - name: Associate the primary elastic IP
+      ec2_eip:
+        device_id: "{{ interface.network_interfaces[0].network_interface_id }}"
+        private_ip_address: "{{ interface.network_interfaces[0].private_ip_address }}"
+        public_ip: "{{ public_ip }}"
+        reuse_existing_ip_allowed: true
+        in_vpc: true
+        state: present
+      # Check interface is defined so we don't break in check mode.
+      when: interface.network_interfaces[0] is defined
+      register: eip
+      delegate_to: localhost
+    - name: Manage secondary IPs (if needed)
+      import_tasks: includes/secondary_ips.yml
+      when: secondary_ips is defined
+    - name: Wait for public IP to come up
+      wait_for: host={{ public_ip }} port=22 delay=1 timeout=640 search_regex=OpenSSH
+      when: eip['changed'] == true
+      delegate_to: localhost
+    - name: Refresh inventory
+      meta: refresh_inventory
+
+- name: Run general roles and tasks on fully Ansible managed servers
+  hosts: full_ansible
+  gather_facts: false
+  become: true
+  pre_tasks:
+  roles:
+  - role: dochang.account
+    ansible_user: "{{ ami_user }}"
+  - role: CivicActions.ec2-800-53-remediate
+    ansible_user: "{{ ami_user }}"
+  tasks:
+  - name: Set hostname
+    remote_user: "{{ ami_user }}"
+    hostname:
+      name: "{{ inventory_hostname }}"
+  - name: Add admins sudoers rules
+    remote_user: "{{ ami_user }}"
+    copy:
+      src: files/sudoers/group-admin
+      dest: /etc/sudoers.d/group-admin
+      validate: 'visudo -cf %s'
+  - name: Add developers sudoers rules
+    copy:
+      src: files/sudoers/group-dev
+      dest: /etc/sudoers.d/group-dev
+      validate: 'visudo -cf %s'
+  - name: Add openscap user sudoers rules
+    copy:
+      src: files/sudoers/oscap-user
+      dest: /etc/sudoers.d/oscap-user
+      validate: 'visudo -cf %s'
+
+- name: Run general roles and tasks on fully Ansible managed development servers only
+  hosts: development:&full_ansible
+  become: true
+  gather_facts: false
+  roles:
+  - role: dochang.account
+    account_users: "{{ developer_users }}"

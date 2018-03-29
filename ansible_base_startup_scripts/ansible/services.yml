@@ -1,0 +1,78 @@
+---
+- name: Confirm connection to host
+  hosts: all
+  gather_facts: false
+  tasks:
+  - name: Confirm suitable connection to instance
+    become: true
+    ping:
+
+- name: Attach security groups
+  hosts: webservers,ilias,ezproxyservers,docker_engine
+  tasks:
+  - import_tasks: includes/attach_security_group.yml
+    vars:
+      security_groups:
+        - "{{ env }}_web"
+        - "{{ env }}_ssh_whitelist"
+
+- name: Configure Docker
+  hosts: docker_engine
+  tasks:
+  - name: Imported docker tasks
+    import_tasks: includes/docker.yml
+
+- name: Configure Audit services
+  hosts: audit_services
+  tags: ['dev']
+  roles:
+  - role: audit-reports
+
+- name: Configure web services
+  hosts: webservers
+  tasks:
+  - name: Imported webserver tasks
+    import_tasks: includes/webservers.yml
+
+- name: Install MariaDB Database
+  hosts: databases
+  become: true
+  roles:
+  - role: geerlingguy.mysql
+
+- name: Configure Ilias
+  hosts: ilias
+  tasks:
+  - name: Imported ilias tasks
+    import_tasks: includes/ilias.yml
+
+- name: Configure EZProxy
+  hosts: ezproxyservers
+  tasks:
+  - name: Imported EZProxy tasks
+    become: true
+    import_tasks: includes/ezproxy.yml
+
+- name: Configure Drupal
+  hosts: drupal7,drupal8
+  tasks:
+  - name: Imported drupal tasks
+    import_tasks: includes/drupal.yml
+
+- name: Configure filebeat
+  hosts: all
+  tasks:
+  - name: Imported filebeat tasks
+    import_tasks: includes/filebeat.yml
+
+- name: Configure Java for Solr
+  hosts: solr_service
+  tasks:
+  - name: Imported java tasks
+    import_tasks: includes/java.yml
+
+- name: Configure Solr
+  hosts: solr_service
+  tasks:
+  - name: Imported solr tasks
+    import_tasks: includes/solr.yml

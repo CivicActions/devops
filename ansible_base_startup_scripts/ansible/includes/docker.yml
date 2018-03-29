@@ -1,0 +1,61 @@
+- name: Install Docker
+  become: true
+  import_role:
+    name: geerlingguy.docker
+- name: Install docker-py
+  become: true
+  yum: name=docker-python state=latest
+
+- name: Docker access for admin group
+  become: true
+  user:
+    name: "{{ item.name }}"
+    groups: docker
+    append: yes
+  when: '"admin" in item.groups'
+  with_items: "{{ account_users }}"
+
+- name: Traefik proxy configuration
+  become: true
+  block:
+  - name: Traefik config directory
+    file: path=/opt/traefik state=directory
+  - name: Traefik ACME data file
+    file: path=/opt/traefik/acme.json state=touch mode=0600
+  - name: Traefik config file from template
+    template:
+      src: templates/traefik.toml.j2
+      dest: /opt/traefik/traefik.toml
+
+- name: Create docker network for traefik proxy
+  docker_network:
+    name: web
+
+- name: Traefik Proxy
+  docker_container:
+    image: traefik
+    name: proxy
+    published_ports: ['80:80','443:443']
+    exposed_ports: ['8080']
+    privileged: yes
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /opt/traefik/traefik.toml:/traefik.toml
+      - /opt/traefik/acme.json:/acme.json
+        #command: "traefik --web --docker --docker.domain={{ docker_proxy_domain }} --logLevel=DEBUG"
+    restart_policy: unless-stopped
+    networks:
+      - name: web
+
+- name: Set DNS record at CloudFlare
+  cloudflare_dns:
+    zone: "{{ item.value.dns_zone }}"
+    record: "{{ item.value.dns_record }}"
+    type: A
+    value: "{{ public_ip }}"
+    account_email: "{{ cloudflare.account_email }}"
+    account_api_token: "{{ cloudflare.api_key }}"
+  when: item.value.dns_record is defined
+  with_dict: "{{ websites }}"
+  ignore_errors: true
+

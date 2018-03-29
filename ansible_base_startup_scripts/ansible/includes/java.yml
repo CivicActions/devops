@@ -1,0 +1,7 @@
+- name: Install Java
+  become: true
+  import_role:
+    name: geerlingguy.java
+    #    java_packages: 
+    # - java-1.8.0-openjdk
+

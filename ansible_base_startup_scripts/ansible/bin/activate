@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+if [ -n "$ZSH_VERSION" ]; then
+  SHELL_TYPE="zsh"
+elif [ -n "$BASH_VERSION" ]; then
+  SHELL_TYPE="bash"
+  if [ "$(basename ${0//-/})" = "activate" ];then
+    echo "ERROR: It looks like you are running this script directly. Instead, source this file to activate your shell session (note the '.'):"
+    echo " . bin/activate"
+    exit 1
+  fi
+else
+  echo "Error: unknown shell"; return
+fi
+
+source ./env.local
+if [ "$ANSIBLE_USER" = "" ]; then
+  echo 'ERROR: Please set your remote username using `echo ANSIBLE_USER=myuser >> env.local`'
+  return
+fi
+
+if [ "$AWS_SSH_KEY_ID" = "" ]; then
+  echo 'ERROR: Please set the name of an SSH key configured in your AWS user security credentials as described in https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html using `echo AWS_SSH_KEY_ID=keyname >> env.local`'
+  return
+fi
+
+source ./env.list
+if grep -Fq "[${AWS_PROFILE}]" ~/.aws/credentials; then
+  echo "Located ${AWS_PROFILE} AWS credentials"
+else
+  echo "ERROR: Credentials for AWS profile ${AWS_PROFILE} not found in ~/.aws/credentials."
+  echo "Please add credentials running \"aws configure --profile ${AWS_PROFILE}\" or by following instructions at http://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-started.html#cli-multiple-profiles"
+  return
+fi
+
+lpass -v &> /dev/null
+if [ $? == 0 ]; then
+  ANSIBLE_BECOME_PASS=$(lpass show --password "ssh-${AWS_PROFILE}")
+  ANSIBLE_VAULT_PASSWORD=$(lpass show --password "ansible-${AWS_PROFILE}")
+fi
+# TODO
+if [ "$ANSIBLE_BECOME_PASS" == "" ]; then
+  echo 'ERROR: Please create a lastpass password with the name 'ssh-${AWS_PROFILE}' and ensure you have the 'ansible-${AWS_PROFILE}' vault password'
+  return
+fi
+
+[ "$(alias | grep deactivate)" ] && deactivate  # In case already activated.
+ANSIBLE_ROOT="$(git rev-parse --show-toplevel)/ansible"
+alias deactivate="export PATH=$PATH; export PS1=\"$PS1\"; unalias ansible ansible-lint ansible-shell ansible-playbook ansible-vault aws inventory 2> /dev/null"
+export PATH=$ANSIBLE_ROOT/bin:$PATH
+
+if [ "$SHELL_TYPE" = "bash" ];then
+  export PS1="${PS1}\[\033[01;31m\](ansible)\[\033[00m\] \$ "
+else
+  export PS1="${PS1} (ansible) \$ "
+fi
+
+echo "Building Ansible/AWSCLI container (this may take some time)"
+docker build -q -t ansible .docker/ansible
+CONTAINER="docker run -it --rm "\
+" -e 'ANSIBLE_BECOME_PASS=$ANSIBLE_BECOME_PASS'"\
+" -e 'ANSIBLE_VAULT_PASSWORD=$ANSIBLE_VAULT_PASSWORD'"\
+" -e 'ANSIBLE_HOST_KEY_CHECKING=$ANSIBLE_HOST_KEY_CHECKING'"\
+" --env-file ./env.list --env-file ./env.local"\
+" -v $(readlink -f $SSH_AUTH_SOCK):/ssh-agent"\
+" -v $HOME/.ssh/known_hosts:/root/.ssh/known_hosts"\
+" -e SSH_AUTH_SOCK=/ssh-agent"\
+" -v $HOME/.aws/credentials:/root/.aws/credentials"\
+" -v $PWD:/opt/ansible ansible"
+INVENTORY="-i inventory"
+BECOME="-u $ANSIBLE_USER -e ansible_become_pass=\"\$ANSIBLE_BECOME_PASS\""
+VAULT="--vault-password-file=/opt/ansible/bin/vault-password"
+
+# Aliases to run in container.
+alias ansible="${CONTAINER} ansible ${VAULT} ${BECOME} ${INVENTORY}"
+alias ansible-lint="${CONTAINER} ansible-lint"
+alias ansible-console="${CONTAINER} ansible-console ${VAULT} ${BECOME} ${INVENTORY}"
+alias ansible-shell="${CONTAINER} bash"
+alias ansible-playbook="${CONTAINER} ansible-playbook ${VAULT} ${BECOME} ${INVENTORY}"
+alias ansible-vault="${CONTAINER} ansible-vault ${VAULT}"
+alias ansible-galaxy="${CONTAINER} ansible-galaxy"
+alias aws="${CONTAINER} aws"
+alias inventory="${CONTAINER} inventory/ec2.py --list"
+alias mkpasswd="${CONTAINER} python -c 'from passlib.hash import sha512_crypt; import getpass; print sha512_crypt.encrypt(getpass.getpass())'"
+
+# Install Ansible Galaxy roles
+${CONTAINER} ansible-galaxy install -r requirements.yml
+${CONTAINER} chown -R $UID roles
+

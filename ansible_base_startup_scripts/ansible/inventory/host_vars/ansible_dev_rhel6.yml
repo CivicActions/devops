@@ -1,0 +1,20 @@
+---
+# Variables used only for deployment
+# Find RHEL ami's here: https://access.redhat.com/articles/3135121
+image: ami-a16eb4db  # RHEL 6.9-4 us-east-1
+ami_user: "ec2-user"
+instance_type: t2.micro
+filesystem: xfs
+# Size in GB for LVM partitions:
+root: 10
+home: 1
+var: 2
+varlog: 1
+varlogaudit: 1
+tmp: 1
+free: 16
+private_ip: 
+# Variables used only for AWS configuration
+public_ip: 
+# Post deployment options
+harden: 1

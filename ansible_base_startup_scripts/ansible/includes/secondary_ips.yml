@@ -1,0 +1,39 @@
+---
+- name: Build list of all secondary private IPs
+  set_fact:
+    secondary_private_ips: "{{ secondary_private_ips|default([]) + [item.value.private_ip] }}"
+  with_dict: "{{ secondary_ips|default({}) }}"
+  delegate_to: localhost
+- name: Build list of new secondary private IPs
+  set_fact:
+    new_secondary_private_ips: "{{ new_secondary_private_ips|default([]) + [item.value.private_ip] }}"
+  when: item.value.private_ip not in existing_private_ips
+  with_dict: "{{ secondary_ips|default({}) }}"
+  delegate_to: localhost
+- name: Update secondary IPs if needed - first delete all (ec2_eni is not idempotent here)
+  ec2_eni:
+    eni_id: "{{ interface.network_interfaces[0].network_interface_id }}"
+    subnet_id: "{{ interface.network_interfaces[0].subnet_id }}"
+    secondary_private_ip_address_count: 0
+    state: present
+  when: new_secondary_private_ips is defined and new_secondary_private_ips[0] is defined
+  delegate_to: localhost
+- name: Update secondary IPs if needed - add
+  ec2_eni:
+    eni_id: "{{ interface.network_interfaces[0].network_interface_id }}"
+    subnet_id: "{{ interface.network_interfaces[0].subnet_id }}"
+    secondary_private_ip_addresses: "{{ secondary_private_ips }}"
+    state: present
+  when: new_secondary_private_ips is defined and new_secondary_private_ips[0] is defined
+  delegate_to: localhost
+- name: Associate secondary elastic IPs
+  ec2_eip:
+    device_id: "{{ interface.network_interfaces[0].network_interface_id }}"
+    private_ip_address: "{{ item.value.private_ip }}"
+    public_ip: "{{ item.value.public_ip }}"
+    reuse_existing_ip_allowed: true
+    state: present
+  # Check interface is defined so we don't break in check mode.
+  when: interface.network_interfaces[0] is defined
+  with_dict: "{{ secondary_ips|default({}) }}"
+  delegate_to: localhost

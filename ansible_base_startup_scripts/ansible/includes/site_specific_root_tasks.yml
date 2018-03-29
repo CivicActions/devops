@@ -1,0 +1,7 @@
+- name: Add fixwebperms.sh command
+  template:
+    src: templates/fixwebperms.sh.j2
+    dest: "/usr/local/bin/fixwebperms-{{ item.value.site }}.sh"
+    mode: 755
+- name: Fix file permissions
+  command: "/usr/local/bin/fixwebperms-{{ item.value.site }}.sh"

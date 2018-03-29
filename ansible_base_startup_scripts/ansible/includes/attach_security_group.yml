@@ -1,0 +1,21 @@
+- name: Build final list of security groups
+  set_fact:
+    final_security_groups: "{{ security_groups }}"
+- name: Build final list of security groups (role plus instance)
+  set_fact:
+    final_security_groups: "{{ security_groups + instance_security_groups }}"
+  when: instance_security_groups is defined
+  delegate_to: localhost
+- name: Fetch primary network interface ID
+  ec2_eni_facts:
+    filters:
+      attachment.instance-id: "{{ ec2_id }}"
+      attachment.device-index: "0"
+  register: interface
+  delegate_to: localhost
+- ec2_eni:
+    eni_id: "{{ interface.network_interfaces[0].network_interface_id }}"
+    subnet_id: "{{ interface.network_interfaces[0].subnet_id }}"
+    security_groups: "{{ final_security_groups }}"
+    state: present
+  delegate_to: localhost

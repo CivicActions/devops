@@ -1,0 +1,40 @@
+---
+# This is for working on ansible stuff.
+# Variables used only for deployment
+# AMI from https://wiki.centos.org/Cloud/AWS#head-78d1e3a4e6ba5c5a3847750d88266916ffe69648
+image: ami-4bf3d731  # Centos-7 us-east-1
+ami_user: "centos"
+instance_type: t2.micro
+filesystem: xfs
+# Size in GB for LVM partitions:
+root: 8
+home: 1
+var: 2
+varlog: 1
+varlogaudit: 1
+tmp: 1
+free: 8
+private_ip: 
+# Variables used only for AWS configuration
+public_ip: 
+
+# Post deployment options
+harden: 1
+
+# website specific variables
+websites:
+  example:
+    site: example
+    env: development
+    servername: example.site.org
+    dns_zone: site.org
+    dns_record: example
+
+# Database
+mysql_root_password: use ansible vault encryption here
+mysql_databases:
+  - name: ilias
+mysql_users:
+  - name: ilias
+    password: use ansible vault encryption here
+    priv: "ilias.*:ALL"

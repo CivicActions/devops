@@ -1,0 +1,122 @@
+- name: "{{ env }} VPC"
+  ec2_vpc:
+    state: present
+    cidr_block: "{{ cidr }}"
+    resource_tags: { "Name":"{{ env }}_vpc", "Environment":"{{ env }}" }
+    subnets:
+      - cidr: "{{ subnet.cidr }}"
+        az: "{{ subnet.az }}"
+        resource_tags: { "Name":"{{ env }}_subnet", "Environment":"{{ env }}" }
+      - cidr: "{{ subnet_alt1.cidr }}"
+        az: "{{ subnet_alt1.az }}"
+        resource_tags: { "Name":"{{ env }}_subnet_alt1", "Environment":"{{ env }}" }
+    internet_gateway: yes
+    wait: yes
+  register: vpc
+- name: Locate main route table
+  ec2_vpc_route_table_facts:
+    filters:
+      vpc-id: "{{ vpc.vpc_id }}"
+  register: vpc_route
+- name: Locate main gateway
+  ec2_vpc_igw:
+    vpc_id: "{{ vpc.vpc_id }}"
+    state: present
+  register: vpc_igw
+- name: Tag main gateway
+  ec2_tag:
+    resource: "{{ vpc_igw.gateway_id }}"
+    tags:
+      Name: "{{ env }}_gateway"
+      Environment: "{{ env }}"
+- name: Set up public subnet route table
+  ec2_vpc_route_table:
+    lookup: id
+    vpc_id: "{{ vpc.vpc_id }}"
+    route_table_id: "{{ vpc_route.route_tables[0].id }}"
+    tags:
+      Name: "{{ env }}_route"
+      Environment: "{{ env }}"
+    routes:
+      - dest: 0.0.0.0/0
+        gateway_id: "{{ vpc_igw.gateway_id }}"
+- name: "{{ env }} VPC NACL"
+  ec2_vpc_nacl:
+    vpc_id: "{{ vpc.vpc_id }}"
+    name: "{{ env }}_nacl"
+    subnets: "{{ vpc.subnets|map(attribute='id')|list }}"
+    ingress: [
+        # rule no, protocol, allow/deny, cidr, icmp_code, icmp_type, port from, port to
+        [100, "tcp", "allow", "0.0.0.0/0", null, null, 22, 22],
+        [200, "tcp", "allow", "0.0.0.0/0", null, null, 80, 80],
+        [300, "tcp", "allow", "0.0.0.0/0", null, null, 443, 443],
+        [400, "tcp", "allow", "0.0.0.0/0", null, null, 25, 25],
+        [500, "icmp", "allow", "0.0.0.0/0", 0, 8],
+        [600, "tcp", "allow", "0.0.0.0/0", null, null, 32768, 61000],
+        [800, "udp", "allow", "0.0.0.0/0", null, null, 123, 123],
+    ]
+    egress: [
+        [100, "all", "allow", "0.0.0.0/0", null, null, null, null]
+    ]
+    state: present
+
+- name: Empty SSH whitelisted ingress rules access table
+  set_fact:
+    ssh_ingress: "{{ [] }}"
+- name: Build SSH whitelisted ingress rules access table
+  set_fact:
+    ssh_ingress: "{{ssh_ingress|default([]) + [{'proto': 'tcp', 'from_port': 22, 'to_port': 22, 'cidr_ip': item.ip}] }}"
+  when: item.ip is defined
+  with_items: "{{ account_users + ips }}"
+- name: Add SSH IP whitelist security group
+  import_tasks: includes/create_security_group.yml
+  vars:
+    name: "{{ env }}_ssh_whitelist"
+    description: Permits inbound SSH to instance from trusted IPs
+    vpc_id: "{{ vpc.vpc_id }}"
+    rules: "{{ ssh_ingress }}"
+
+- name: Empty https whitelisted ingress rules access table
+  set_fact:
+    https_ingress: "{{ [] }}"
+- name: Build https whitelisted ingress rules access table
+  set_fact:
+    https_ingress: "{{https_ingress|default([]) + [{'proto': 'tcp', 'from_port': 443, 'to_port': 443, 'cidr_ip': item.ip}] }}"
+  when: item.ip is defined
+  with_items: "{{ account_users + ips }}"
+- name: Add https IP whitelist security group
+  import_tasks: includes/create_security_group.yml
+  vars:
+    name: "{{ env }}_https_whitelist"
+    description: Permits inbound https to instance from trusted IPs
+    vpc_id: "{{ vpc.vpc_id }}"
+    rules: "{{ https_ingress }}"
+
+- name: Add web server security group
+  import_tasks: includes/create_security_group.yml
+  vars:
+    name: "{{ env }}_web"
+    description: Permits inbound http and https traffic
+    vpc_id: "{{ vpc.vpc_id }}"
+    rules:
+    - proto: tcp
+      from_port: 80
+      to_port: 80
+      cidr_ip: 0.0.0.0/0
+    - proto: tcp
+      from_port: 443
+      to_port: 443
+      cidr_ip: 0.0.0.0/0
+
+- name: Add SSH security group (dev only)
+  import_tasks: includes/create_security_group.yml
+  vars:
+    name: "{{ env }}_ssh"
+    description: Permits inbound SSH to instance
+    vpc_id: "{{ vpc.vpc_id }}"
+    rules:
+    - proto: tcp
+      from_port: 22
+      to_port: 22
+      cidr_ip: 0.0.0.0/0
+  when: env == "development"

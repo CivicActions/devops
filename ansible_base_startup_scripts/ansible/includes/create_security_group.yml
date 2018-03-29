@@ -1,0 +1,14 @@
+- name: "Add {{ name }} security group"
+  ec2_group:
+    name: "{{ name }}"
+    description: "{{ description }}"
+    vpc_id: "{{ vpc_id }}"
+    rules: "{{ rules }}"
+    rules_egress:
+  register: sg
+- name: "Tag {{ name }} security group "
+  ec2_tag:
+    resource: "{{ sg.group_id }}"
+    tags:
+      Name: "{{ name }}"
+      Environment: "{{ env }}"
