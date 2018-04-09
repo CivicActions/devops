@@ -48,15 +48,32 @@ hsts() {
   TIME=5
   # Check for HTTPS Strict Transport Security (HSTS).
   CURL=$( curl --connect-timeout $TIME -s -v "https://${AUTH}${SITE}/${POST}" 2>&1 )
-  if [[ $? == 28 ]]; then
-    echo "$HSTS $INCL $LOAD $SITE -- Site timeout after $TIME seconds"
+  ERROR=$?
+  if [[ $ERROR -ne 0 ]]; then
+    case $ERROR in
+      6)
+	ETEXT="Couldn't resolve host."
+	;;
+      28)
+	ETEXT="Site timeout after $TIME seconds"
+	;;
+      35)
+	ETEXT="SSL connect error. The SSL handshaking failed"
+	;;
+      60)
+	ETEXT="Peer certificate cannot be authenticated with known CA certificates"
+	;;
+      *)
+	ETEXT="Curl connection error code: $ERROR"
+    esac
+    echo "$HSTS $INCL $LOAD -Error- $SITE -- $ETEXT"
     return
   fi
-  CURL=$( echo $CURL | grep -i strict-transport )
-  if [[ ! -z "$CURL" ]]; then
+  STRICT=$( echo $CURL | grep -i strict-transport )
+  if [[ ! -z "$STRICT" ]]; then
     HSTS="HSTS"
-    $( echo $CURL | grep -i "preload" > /dev/null ) && LOAD="preload"
-    $( echo $CURL | grep -i "includesubdomains" > /dev/null ) && INCL="SubDomains"
+    $( echo $STRICT | grep -i "preload" > /dev/null ) && LOAD="preload"
+    $( echo $STRICT | grep -i "includesubdomains" > /dev/null ) && INCL="SubDomains"
   fi
   # Check for weak protocols and ciphers.
   SSLSCAN="$(sslscan $SITE | egrep '(SSLv|TLSv1.|DES|RC4)')"
