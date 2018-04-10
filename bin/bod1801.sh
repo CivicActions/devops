@@ -45,7 +45,7 @@ hsts() {
   HSTS="----"
   INCL="----------"
   LOAD="-------"
-  TIME=5
+  TIME=10
   # Check for HTTPS Strict Transport Security (HSTS).
   CURL=$( curl --connect-timeout $TIME -s -v "https://${AUTH}${SITE}/${POST}" 2>&1 )
   ERROR=$?
@@ -59,6 +59,9 @@ hsts() {
 	;;
       35)
 	ETEXT="SSL connect error. The SSL handshaking failed"
+	;;
+      51)
+	ETEXT="The peer's SSL certificate or SSH MD5 fingerprint was not OK."
 	;;
       60)
 	ETEXT="Peer certificate cannot be authenticated with known CA certificates"
