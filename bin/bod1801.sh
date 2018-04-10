@@ -15,10 +15,12 @@ BASE=`basename $0`
 
 usage() {
   echo "Usage: $BASE SITENAME [BASIC:AUTH@] [PATH]"
-  echo "       If configured, displays: 'HSTS SubDomains preload SITENAME'"
+  echo "       If configured, displays: 'HSTS SubDomains preload TLSv1.2 SITENAME'"
   echo "       Followed by weak protocols (TLSv1.0, TLSv1.1) and ciphers (DES, RC4)."
+  echo "       Indicate 'max-age' if less than 31536000 (365 days) and HSTS is set."
   echo "       For more complete SSL information, run 'sslscan SITENAME'"
-  echo "  Try: $BASE civicactions.com"
+  echo "  Try: $BASE git.civicactions.net"
+  echo "   Or: $BASE github.com"
   echo "   Or: $BASE badssl.com"
   exit 1
 }
@@ -47,7 +49,7 @@ hsts() {
   LOAD="-------"
   TIME=10
   # Check for HTTPS Strict Transport Security (HSTS).
-  CURL=$( curl --connect-timeout $TIME -s -v "https://${AUTH}${SITE}/${POST}" 2>&1 )
+  CURL=$( curl --connect-timeout $TIME -s -I "https://${AUTH}${SITE}/${POST}" 2>&1 )
   ERROR=$?
   if [[ $ERROR -ne 0 ]]; then
     case $ERROR in
@@ -72,11 +74,17 @@ hsts() {
     echo "$HSTS $INCL $LOAD -Error- $SITE -- $ETEXT"
     return
   fi
-  STRICT=$( echo $CURL | grep -i strict-transport )
+  MAXAGE=''
+  STRICT=$( echo "$CURL" | grep -i "strict-transport-security" )
   if [[ ! -z "$STRICT" ]]; then
     HSTS="HSTS"
     $( echo $STRICT | grep -i "preload" > /dev/null ) && LOAD="preload"
     $( echo $STRICT | grep -i "includesubdomains" > /dev/null ) && INCL="SubDomains"
+    $( echo $STRICT | grep -i "max-age=" > /dev/null ) && {
+      MAX=31536000
+      AGE=$( echo "$STRICT" | sed 's/.*max-age=\([0-9]*\).*$/\1/' )
+      (( $AGE < $MAX )) && MAXAGE="max-age=${AGE}(<${MAX})"
+    }
   fi
   # Check for weak protocols and ciphers.
   SSLSCAN="$(sslscan $SITE | egrep '(SSLv|TLSv1.|DES|RC4)')"
@@ -96,6 +104,7 @@ hsts() {
   [[ -z "$CIPHERS" ]] || WEAK="$WEAK; weak cipher:$CIPHERS"
   [[ -z "$WEAK" ]]    || WEAK="-- $WEAK"
   [[ -z "$TLSv13" ]]  || WEAK="$WEAK $TLSv13"
+  [[ -z "$MAXAGE" ]]  || WEAK="${WEAK}; ${MAXAGE}"
   echo "$HSTS $INCL $LOAD $TLSv12 $SITE ${WEAK}"
 }
 
