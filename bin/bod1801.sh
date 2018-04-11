@@ -5,26 +5,34 @@
 # Public License version 3.0 or any later version.
 # License URL: https://www.gnu.org/licenses/agpl-3.0.en.html
 
-# Binding Operational Directive (BOD) 18-01: https://cyber.dhs.gov/
+# Binding Operational Directive (BOD) 18-01: https://cyber.dhs.gov/bod/18-01/
 
 # Check if server is using HTTPS Strict Transfer Security (HSTS).
-# If HSTS, check if "includeSubDomains" and "preload" is included.
-# Also check if weak ciphers are in use and if so, display them.
+# If HSTS is configured, check that max-age is >= 31536000 (365 days)
+#         and look for the "includeSubDomains" and "preload" flags.
+# Finally, confirm the availablility of TLSv1.2 and check for weak ciphers.
 
 BASE=`basename $0`
 
 usage() {
+  echo "Usage: $BASE \"header\""
+  echo "       Print column headers and exit"
   echo "Usage: $BASE SITENAME [BASIC:AUTH@] [PATH]"
   echo "       If configured, displays: 'HSTS SubDomains preload TLSv1.2 SITENAME'"
   echo "       Followed by weak protocols (TLSv1.0, TLSv1.1) and ciphers (DES, RC4)."
   echo "       Indicate 'max-age' if less than 31536000 (365 days) and HSTS is set."
   echo "       For more complete SSL information, run 'sslscan SITENAME'"
-  echo "  Try: $BASE git.civicactions.net"
-  echo "   Or: $BASE github.com"
-  echo "   Or: $BASE badssl.com"
+  echo "  Try: $BASE civicactions.com"
+  echo "   Or: for SITE in header github.com badssl.com; do $BASE \$SITE; done"
   exit 1
 }
 [[ $# -eq 0 ]] && usage
+
+[[ $# -eq 1 ]] && [[ $1 == "header" ]] && {
+  echo "HSTS SubDomains Preload TLSv12? Sitename [-- weak protocols, ciphers, max-age]"
+  echo "==== ========== ======= ======= ========"
+  exit 0
+}
 
 MINV="1.11"
 minversion() {
