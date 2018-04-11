@@ -37,7 +37,8 @@ usage() {
 MINV="1.11"
 minversion() {
   echo "$BASE requires sslscan v${MINV}+ to be installed on your system"
-  echo "Install with (e.g.) 'pacaur -S sslscan-git'"
+  echo "Install with (e.g. on Arch GNU/Linux): 'pacaur -S sslscan-git'"
+  echo "Or clone and compile from https://github.com/rbsec/sslscan"
   exit 1
 }
 # Make sure sslscan is installed.
