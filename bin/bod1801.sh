@@ -14,7 +14,7 @@
 
 BASE=`basename $0`
 
-usage() {
+[[ $# -eq 0 ]] && {
   echo "Usage: $BASE \"header\""
   echo "       Print column headers and exit"
   echo "Usage: $BASE SITENAME [BASIC:AUTH@] [PATH]"
@@ -25,13 +25,6 @@ usage() {
   echo "  Try: $BASE civicactions.com"
   echo "   Or: for SITE in header github.com badssl.com; do $BASE \$SITE; done"
   exit 1
-}
-[[ $# -eq 0 ]] && usage
-
-[[ $# -eq 1 ]] && [[ $1 == "header" ]] && {
-  echo "HSTS SubDomains Preload TLSv12? Sitename [-- weak protocols, ciphers, max-age]"
-  echo "==== ========== ======= ======= ========"
-  exit 0
 }
 
 MINV="1.11"
@@ -48,6 +41,13 @@ $( command -v sslscan > /dev/null ) || minversion
 version_gt() { test "$(printf '%s\n' "$@" | sort -V  | head -n 1)" != "$1"; }
 VERS="$(sslscan --version | egrep 'static|version' | sed 's/.*\s\([0-9][0-9\.]*\).*$/\1/')"
 version_gt $MINV $VERS && minversion
+
+# Print a header.
+[[ $# -eq 1 ]] && [[ $1 == "header" ]] && {
+  echo "HSTS SubDomains Preload TLSv12? Sitename [-- weak protocols, ciphers, max-age]"
+  echo "==== ========== ======= ======= ========"
+  exit 0
+}
 
 hsts() {
   SITE="$1"
