@@ -117,4 +117,4 @@ hsts() {
   echo "$HSTS $INCL $LOAD $TLSv12 $SITE ${WEAK}"
 }
 
-hsts "$1"
+hsts "$@"
