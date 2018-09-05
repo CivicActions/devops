@@ -63,7 +63,7 @@ hsts() {
   LOAD="-------"
   TIME=10
   # Check for HTTPS Strict Transport Security (HSTS).
-  CURL=$( curl --connect-timeout $TIME -s -I "https://${ARG}" 2>&1 )
+  CURL=$( curl --connect-timeout $TIME -s -v "https://${ARG}" 2>&1 )
   ERROR=$?
   if [[ $ERROR -ne 0 ]]; then
     case $ERROR in
