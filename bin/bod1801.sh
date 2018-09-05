@@ -15,15 +15,14 @@
 BASE=`basename $0`
 
 [[ $# -eq 0 ]] && {
-  echo "Usage: $BASE \"header\""
-  echo "       Print column headers and exit"
-  echo "Usage: $BASE SITENAME [BASIC:AUTH@] [PATH]"
+  echo "Usage: $BASE [ 'header' ] SITENAME..."
+  echo "       If arg is 'header', print a header for output; then for each SITENAME:"
   echo "       If configured, displays: 'HSTS SubDomains preload TLSv1.2 SITENAME'"
   echo "       Followed by weak protocols (TLSv1.0, TLSv1.1) and ciphers (DES, RC4)."
   echo "       Indicate 'max-age' if less than 31536000 (365 days) and HSTS is set."
+  echo "       Note that SITENAME can contain AUTH (user:pass@) and an optional /PATH"
   echo "       For more complete SSL information, run 'sslscan SITENAME'"
-  echo "  Try: $BASE civicactions.com"
-  echo "   Or: for SITE in header github.com badssl.com; do $BASE \$SITE; done"
+  echo "  Try: $BASE header civicactions.com github.com badssl.com"
   exit 1
 }
 
@@ -43,22 +42,28 @@ VERS="$(sslscan --version | egrep 'static|version' | sed 's/.*\s\([0-9][0-9\.]*\
 version_gt $MINV $VERS && minversion
 
 # Print a header.
-[[ $# -eq 1 ]] && [[ $1 == "header" ]] && {
+print_header() {
   echo "HSTS SubDomains Preload TLSv12? Sitename [-- weak protocols, ciphers, max-age]"
   echo "==== ========== ======= ======= ========"
-  exit 0
 }
 
 hsts() {
-  SITE="$1"
-  AUTH="$2"
-  POST="$3"
+  ARG=$1
+  [[ $ARG == "header" ]] && {
+    print_header
+    return
+  }
+  # Strip optional "AUTH@" and "/POST" from $SITE (there must be a better way).
+  SITE="$ARG"
+  [[ $SITE =~ "@" ]] && SITE=$( echo $SITE | cut -d'@' -f2 )
+  [[ $SITE =~ "/" ]] && SITE=$( echo $SITE | cut -d'/' -f1 )
+  # Set negative defaults.
   HSTS="----"
   INCL="----------"
   LOAD="-------"
   TIME=10
   # Check for HTTPS Strict Transport Security (HSTS).
-  CURL=$( curl --connect-timeout $TIME -s -I "https://${AUTH}${SITE}/${POST}" 2>&1 )
+  CURL=$( curl --connect-timeout $TIME -s -I "https://${ARG}" 2>&1 )
   ERROR=$?
   if [[ $ERROR -ne 0 ]]; then
     case $ERROR in
@@ -117,4 +122,6 @@ hsts() {
   echo "$HSTS $INCL $LOAD $TLSv12 $SITE ${WEAK}"
 }
 
-hsts "$@"
+for ARG in "$@"; do
+  hsts "$ARG"
+done
