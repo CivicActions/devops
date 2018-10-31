@@ -101,7 +101,7 @@ hsts() {
     }
   fi
   # Check for weak protocols and ciphers.
-  SSLSCAN="$(sslscan $SITE | egrep '(SSLv|TLSv1.|DES|RC4)')"
+  SSLSCAN="$(sslscan --bugs --no-heartbleed --no-compression --no-renegotiation --no-check-certificate $SITE)"
   PROTOS=''
   CIPHERS=''
   TLSv12='-------'
