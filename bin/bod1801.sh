@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright 2018 CivicActions, Inc.
+# Copyright 2018-2020 CivicActions, Inc.
 # This program is licensed under the GNU Affero General
 # Public License version 3.0 or any later version.
 # License URL: https://www.gnu.org/licenses/agpl-3.0.en.html
@@ -26,11 +26,10 @@ BASE=`basename $0`
   exit 1
 }
 
-MINV="1.11"
+MINV="2.0"
 minversion() {
   echo "$BASE requires sslscan v${MINV}+ to be installed on your system"
-  echo "Install with (e.g. on Arch GNU/Linux): 'pacaur -S sslscan-rbsec'"
-  echo "Or clone and compile from https://github.com/rbsec/sslscan"
+  echo "Clone and compile from https://github.com/rbsec/sslscan"
   exit 1
 }
 # Make sure sslscan is installed.
@@ -101,18 +100,18 @@ hsts() {
     }
   fi
   # Check for weak protocols and ciphers.
-  SSLSCAN="$(sslscan --bugs --no-heartbleed --no-compression --no-renegotiation --no-check-certificate $SITE)"
+  SSLSCAN="$(sslscan --no-colour --bugs --no-heartbleed --no-compression --no-renegotiation --no-check-certificate $SITE)"
   PROTOS=''
   CIPHERS=''
   TLSv12='-------'
   TLSv13=''
-  $(echo $SSLSCAN | grep -q 'SSLv')    && PROTOS="$PROTOS SSL"
-  $(echo $SSLSCAN | grep -q 'TLSv1.0') && PROTOS="$PROTOS TLSv1.0"
-  $(echo $SSLSCAN | grep -q 'TLSv1.1') && PROTOS="$PROTOS TLSv1.1"
-  $(echo $SSLSCAN | grep -q 'DES')     && CIPHERS="$CIPHERS DES"
-  $(echo $SSLSCAN | grep -q 'RC4')     && CIPHERS="$CIPHERS RC4"
-  $(echo $SSLSCAN | grep -q 'TLSv1.2') && TLSv12="TLSv1.2"
-  $(echo $SSLSCAN | grep -q 'TLSv1.3') && TLSv13="(has TLSv1.3)"
+  $(echo "$SSLSCAN" | egrep -q '^SSLv.*\s+enabled')  && PROTOS="$PROTOS SSL"
+  $(echo "$SSLSCAN" | egrep -q '^TLSv1.0\s+enabled') && PROTOS="$PROTOS TLSv1.0"
+  $(echo "$SSLSCAN" | egrep -q '^TLSv1.1\s+enabled') && PROTOS="$PROTOS TLSv1.1"
+  $(echo "$SSLSCAN" | grep -q 'DES')                 && CIPHERS="$CIPHERS DES"
+  $(echo "$SSLSCAN" | grep -q 'RC4')                 && CIPHERS="$CIPHERS RC4"
+  $(echo "$SSLSCAN" | egrep -q '^TLSv1.2\s+enabled') && TLSv12="TLSv1.2"
+  $(echo "$SSLSCAN" | egrep -q '^TLSv1.3\s+enabled') && TLSv13="(has TLSv1.3)"
   WEAK=''
   [[ -z "$PROTOS" ]]  || WEAK="weak protocol:$PROTOS"
   [[ -z "$CIPHERS" ]] || WEAK="$WEAK; weak cipher:$CIPHERS"
